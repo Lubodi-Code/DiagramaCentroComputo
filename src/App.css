@@ -13,7 +13,7 @@ body {
 }
 
 .wrap{
-  max-width:1200px; margin:32px auto; padding:24px;
+  max-width:1200px; margin:32px auto; padding:24px; position:relative;
   background:linear-gradient(180deg,#0e1626,#0b1220);
   border:1px solid #1e2b40; border-radius:18px;
   box-shadow:

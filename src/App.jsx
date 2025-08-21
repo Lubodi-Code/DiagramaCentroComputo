@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import './App.css'
 import { SPECS, DEFAULT_TOUR } from './specs'
 
@@ -26,7 +26,7 @@ function Chip({ children, onClick, dataKey, className }) {
     onClick(dataKey)
   }
   return (
-    <span className={cls} onClick={clickable ? handleClick : undefined} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined}>
+  <span data-spec={dataKey || undefined} className={cls} onClick={clickable ? handleClick : undefined} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined}>
       {children}
     </span>
   )
@@ -66,23 +66,23 @@ function Racks({ onSpec }) {
   )
 }
 
-function Supervisores() {
+function Supervisores({ onSpec }) {
   return (
-    <div className="sup">
+    <div className="sup" data-spec="supervision">
       <div className="desk" data-tip="Supervisor 1">
         <div className="screens"><div className="scr" /><div className="scr" /></div>
         <div className="vw" />
         <div className="chips" style={{ marginTop: 8 }}>
-          <Chip><svg className="ic"><use href="#ic-headset" /></svg> Softphone</Chip>
-          <Chip><svg className="ic"><use href="#ic-report" /></svg> Reportes</Chip>
+          <Chip onClick={onSpec} dataKey="softphone"><svg className="ic"><use href="#ic-headset" /></svg> Softphone</Chip>
+          <Chip onClick={onSpec} dataKey="reportes"><svg className="ic"><use href="#ic-report" /></svg> Reportes</Chip>
         </div>
       </div>
       <div className="desk" data-tip="Supervisor 2">
         <div className="screens"><div className="scr" /><div className="scr" /></div>
         <div className="vw" />
         <div className="chips" style={{ marginTop: 8 }}>
-          <Chip><svg className="ic"><use href="#ic-analytics" /></svg> Analítica</Chip>
-          <Chip><svg className="ic"><use href="#ic-record" /></svg> Grabación</Chip>
+          <Chip onClick={onSpec} dataKey="analitica"><svg className="ic"><use href="#ic-analytics" /></svg> Analítica</Chip>
+          <Chip onClick={onSpec} dataKey="grabacion"><svg className="ic"><use href="#ic-record" /></svg> Grabación</Chip>
         </div>
       </div>
     </div>
@@ -110,9 +110,80 @@ function AgentsGrid() {
 
 // Energy cards accept an onSpec callback to open specs
 function EnergyCards({ generatorKw = 60, onSpec }) {
+  const genRef = useRef(null)
+
+  useEffect(() => {
+    const el = genRef.current
+    if (!el) return
+    // restore position if any
+    try {
+      const raw = window.localStorage.getItem('generatorPos')
+      if (raw) {
+        const pos = JSON.parse(raw)
+        el.style.position = 'fixed'
+        el.style.left = pos.x + 'px'
+        el.style.top = pos.y + 'px'
+        el.style.zIndex = 999
+      }
+  } catch (err) { console.warn('restore generatorPos failed', err) }
+
+    let dragging = false
+    let startX = 0
+    let startY = 0
+    let origX = 0
+    let origY = 0
+
+    const onPointerDown = (e) => {
+      // only start when clicking the handle
+      if (!e.target.closest || !e.target.closest('.drag-handle')) return
+      dragging = true
+      el.setPointerCapture?.(e.pointerId)
+      startX = e.clientX
+      startY = e.clientY
+      const rect = el.getBoundingClientRect()
+      origX = rect.left
+      origY = rect.top
+      el.style.position = 'fixed'
+      el.style.zIndex = 10000
+      document.body.classList.add('dragging')
+      e.preventDefault()
+    }
+
+    const onPointerMove = (e) => {
+      if (!dragging) return
+      const dx = e.clientX - startX
+      const dy = e.clientY - startY
+      const nx = Math.max(8, origX + dx)
+      const ny = Math.max(8, origY + dy)
+      el.style.left = nx + 'px'
+      el.style.top = ny + 'px'
+      e.preventDefault()
+    }
+
+    const onPointerUp = (e) => {
+      if (!dragging) return
+      dragging = false
+      el.releasePointerCapture?.(e.pointerId)
+      document.body.classList.remove('dragging')
+      // persist
+  try { window.localStorage.setItem('generatorPos', JSON.stringify({ x: parseInt(el.style.left || '0', 10), y: parseInt(el.style.top || '0', 10) })) } catch (err) { console.warn('persist generatorPos failed', err) }
+      e.preventDefault()
+    }
+
+    el.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+
+    return () => {
+      el.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+    }
+  }, [genRef])
+
   return (
     <div className="cards">
-      <div className="card" data-tip="UPS Online 3 kVA — carga crítica">
+      <div className="card" data-spec="ups" data-tip="UPS Online 3 kVA — carga crítica">
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <svg className="ic"><use href="#ic-ups" /></svg><strong>UPS Online 3 kVA</strong>
         </div>
@@ -122,9 +193,10 @@ function EnergyCards({ generatorKw = 60, onSpec }) {
           <Chip onClick={onSpec} dataKey="ups"><svg className="ic"><use href="#ic-ground" /></svg> Tierra física</Chip>
         </div>
       </div>
-      <div className="card" data-tip={`Generador ${generatorKw} kW — ATS — dimensionamiento revisado (≥50 kW)`}>
+      <div ref={genRef} className="card" data-spec="generator" data-tip={`Generador ${generatorKw} kW — ATS — dimensionamiento revisado (≥50 kW)`} style={{ cursor: 'grab' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <svg className="ic"><use href="#ic-gen" /></svg><strong>Generador {generatorKw} kW</strong>
+          <span className="drag-handle" title="Arrastrar" style={{ marginLeft: 8, padding: '4px 6px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, fontSize: 12, color: '#9fb0c5' }}>☰</span>
         </div>
         <div className="note">Diésel • Transferencia automática (ATS) • Dimensionamiento revisado (≥50 kW)</div>
         <div className="chips">
@@ -138,13 +210,86 @@ function EnergyCards({ generatorKw = 60, onSpec }) {
 
 // Lightweight modal for specs/tour
 function SpecsModal({ open, id, onClose, onPrev, onNext }) {
+  const modalRef = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    const el = modalRef.current
+    if (!el) return
+    // restore position
+    try {
+      const raw = window.localStorage.getItem('specsPos')
+      if (raw) {
+        const pos = JSON.parse(raw)
+        el.style.position = 'fixed'
+        el.style.left = pos.x + 'px'
+        el.style.top = pos.y + 'px'
+        el.style.zIndex = 20000
+      }
+    } catch { /* ignore */ }
+
+    let dragging = false
+    let startX = 0
+    let startY = 0
+    let origX = 0
+    let origY = 0
+
+    const onPointerDown = (e) => {
+      // only start when clicking header, but ignore clicks on interactive elements (buttons/links)
+      if (!e.target.closest || !e.target.closest('.modal-header')) return
+      // ignore interactive targets so their click handlers work
+      if (e.target.closest && e.target.closest('button, a, .btn, [role="button"]')) return
+      dragging = true
+      el.setPointerCapture?.(e.pointerId)
+      startX = e.clientX
+      startY = e.clientY
+      const rect = el.getBoundingClientRect()
+      origX = rect.left
+      origY = rect.top
+      el.style.position = 'fixed'
+      el.style.zIndex = 30000
+      document.body.classList.add('dragging')
+      e.preventDefault()
+    }
+
+    const onPointerMove = (e) => {
+      if (!dragging) return
+      const dx = e.clientX - startX
+      const dy = e.clientY - startY
+      const nx = Math.max(8, origX + dx)
+      const ny = Math.max(8, origY + dy)
+      el.style.left = nx + 'px'
+      el.style.top = ny + 'px'
+      e.preventDefault()
+    }
+
+    const onPointerUp = (e) => {
+      if (!dragging) return
+      dragging = false
+      el.releasePointerCapture?.(e.pointerId)
+      document.body.classList.remove('dragging')
+      // persist position
+      try { window.localStorage.setItem('specsPos', JSON.stringify({ x: parseInt(el.style.left || '0', 10), y: parseInt(el.style.top || '0', 10) })) } catch { /* ignore */ }
+      e.preventDefault()
+    }
+
+    el.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+
+    return () => {
+      el.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+    }
+  }, [open, id])
+
   if (!open || !id) return null
   const spec = SPECS[id]
   if (!spec) return null
   return (
     <div className="modal" role="dialog" aria-label="Especificaciones">
-      <div className="modal-card">
-        <div className="modal-header">
+      <div ref={modalRef} className="modal-card" style={{ cursor: 'grab' }}>
+        <div className="modal-header" style={{ cursor: 'grab' }}>
           <strong>{spec.title}</strong>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button className="btn" onClick={onPrev} aria-label="Anterior">◀</button>
@@ -214,19 +359,23 @@ function CompliancePanel({ open, onClose }) {
 }
 
 export default function App() {
-  const [showAir, setShowAir] = useState(true)
-  const [showCctv, setShowCctv] = useState(true)
-  const [showTray, setShowTray] = useState(true)
-  const [showEvac, setShowEvac] = useState(true)
-  const [showAccess, setShowAccess] = useState(true)
-  const [showPanel, setShowPanel] = useState(true)
+  const [showAir, setShowAir] = useState(false)
+  const [showCctv, setShowCctv] = useState(false)
+  const [showTray, setShowTray] = useState(false)
+  const [showEvac, setShowEvac] = useState(false)
+  const [showAccess, setShowAccess] = useState(false)
+  const [showPanel, setShowPanel] = useState(false)
 
   // Tour state with persistence
   const persisted = typeof window !== 'undefined' ? Number(window.localStorage.getItem('tourIdx') ?? '0') : 0
   const [tourOpen, setTourOpen] = useState(false)
   const [tourIdx, setTourIdx] = useState(Number.isFinite(persisted) ? persisted : 0)
-  const tour = DEFAULT_TOUR
-  const currentId = tour[tourIdx]
+  // tour list is built dynamically from DOM [data-spec] when starting the tour
+  const tourListRef = useRef(DEFAULT_TOUR)
+  const currentId = tourListRef.current[tourIdx]
+  const pointerRef = useRef(null)
+  const highlightRef = useRef(null)
+  const autoplayRef = useRef(false)
 
   const setIdxPersist = (fnOrIdx) => {
     setTourIdx(prev => {
@@ -237,12 +386,66 @@ export default function App() {
   }
 
   const openSpec = (id) => {
-    const idx = tour.indexOf(id)
+    const idx = tourListRef.current.indexOf(id)
     setIdxPersist(idx >= 0 ? idx : 0)
     setTourOpen(true)
   }
-  const next = () => setIdxPersist(i => (i + 1) % tour.length)
-  const prev = () => setIdxPersist(i => (i - 1 + tour.length) % tour.length)
+  const next = () => setIdxPersist(i => (i + 1) % tourListRef.current.length)
+  const prev = () => setIdxPersist(i => (i - 1 + tourListRef.current.length) % tourListRef.current.length)
+
+  // Start the tour building a dynamic list of all [data-spec] elements in DOM order
+  const startTour = (autoplay = false) => {
+    try {
+      const nodes = Array.from(document.querySelectorAll('[data-spec]')).map(el => el.getAttribute('data-spec')).filter(Boolean)
+      const uniq = Array.from(new Set(nodes))
+      tourListRef.current = uniq.length ? uniq : DEFAULT_TOUR
+    } catch {
+      tourListRef.current = DEFAULT_TOUR
+    }
+    autoplayRef.current = autoplay
+    setIdxPersist(0)
+    setTourOpen(true)
+  }
+
+  // Move the visual pointer to the currently focused tour element
+  useEffect(() => {
+    if (!tourOpen) return
+    const id = currentId
+    if (!id) return
+    const el = document.querySelector(`[data-spec="${id}"]`)
+    const p = pointerRef.current
+    if (!p || !el) return
+    // prefer to highlight a meaningful area (ancestor section/card/rack) when available
+    const area = el.closest('section.room, .cards, .racks, .agents, .entrygrid, .rack, .seats, .card, .entry, .room')
+    const rect = (area || el).getBoundingClientRect()
+    // center pointer above the area (use viewport coordinates)
+    const cx = Math.round(rect.left + rect.width / 2 - 9)
+    const cy = Math.round(rect.top - 28)
+    // place pointer using fixed positioning (viewport coords)
+    p.style.left = cx + 'px'
+    p.style.top = cy + 'px'
+    p.style.opacity = '1'
+
+    // position and show highlight box using fixed coords
+    const h = highlightRef.current
+    if (h) {
+      h.style.width = rect.width + 'px'
+      h.style.height = rect.height + 'px'
+      h.style.left = Math.round(rect.left) + 'px'
+      h.style.top = Math.round(rect.top) + 'px'
+      h.style.opacity = '1'
+    }
+
+    // scroll into view smoothly - use area if available
+    (area || el).scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+    // If autoplay is set, advance after delay
+    if (autoplayRef.current) {
+      const t = setTimeout(() => {
+        setIdxPersist(i => (i + 1) % tourListRef.current.length)
+      }, 1900)
+      return () => clearTimeout(t)
+    }
+  }, [tourOpen, tourIdx, currentId])
 
   return (
     <div className="wrap">
@@ -265,13 +468,14 @@ export default function App() {
       </div>
 
       <div className="controls">
-        <Toggle id="air" label="Flujo de aire" checked={showAir} onChange={setShowAir} />
-        <Toggle id="cctv" label="CCTV" checked={showCctv} onChange={setShowCctv} />
-        <Toggle id="tray" label="Bandeja de cableado" checked={showTray} onChange={setShowTray} />
-        <Toggle id="evac" label="Evacuación" checked={showEvac} onChange={setShowEvac} />
-        <Toggle id="access" label="Acceso" checked={showAccess} onChange={setShowAccess} />
-        <Toggle id="panel" label="Inspector de Cumplimiento" checked={showPanel} onChange={setShowPanel} />
-        <button className="btn" onClick={() => { setTourOpen(true); setTourIdx(0); }} style={{ marginLeft: 'auto' }}>Iniciar tour</button>
+    <Toggle id="air" label="Flujo de aire" checked={showAir} onChange={setShowAir} />
+    <Toggle id="cctv" label="CCTV" checked={showCctv} onChange={setShowCctv} />
+    <Toggle id="tray" label="Bandeja de cableado" checked={showTray} onChange={setShowTray} />
+    <Toggle id="evac" label="Evacuación" checked={showEvac} onChange={setShowEvac} />
+    <Toggle id="access" label="Acceso" checked={showAccess} onChange={setShowAccess} />
+    <Toggle id="panel" label="Inspector de Cumplimiento" checked={showPanel} onChange={setShowPanel} />
+    <button className="btn" onClick={() => startTour(true)} style={{ marginLeft: 'auto' }}>Iniciar tour</button>
+  <button className="btn" onClick={() => startTour(false)} style={{ marginLeft: 8 }}>Iniciar tour (manual)</button>
       </div>
 
       {showTray && (
@@ -302,11 +506,11 @@ export default function App() {
         <section className="room">
           <h3><svg className="ic"><use href="#ic-monitor" /></svg> Sala de Supervisión — 2 Estaciones</h3>
           <div className="note">Monitoreo de KPIs · Grabaciones · QoS</div>
-          <Supervisores />
+    <Supervisores onSpec={openSpec} />
         </section>
       </div>
 
-      <section className="agents">
+  <section className="agents" data-spec="agents-area">
         <h3><svg className="ic"><use href="#ic-users" /></svg> Área de Agentes — 20 Puestos (Voz/Datos en VLAN)</h3>
         <AgentsGrid />
         <div className="rowlabel">Pasillo de circulación</div>
@@ -380,11 +584,24 @@ export default function App() {
         </div>
       )}
 
+  {/* Tour pointer (absolute, moves to target) */}
+  <div ref={pointerRef} className="tour-pointer" style={{ position: 'fixed', left: 0, top: 0, width: 18, height: 18, background: '#ffb86b', borderRadius: 9, boxShadow: '0 0 12px rgba(255,184,107,0.9)', transform: 'translate(-9999px,-9999px)', transition: 'left 450ms cubic-bezier(.2,.9,.3,1), top 450ms cubic-bezier(.2,.9,.3,1), opacity 300ms', opacity: 0, zIndex: 9999 }} aria-hidden="true" />
+  <div ref={highlightRef} className="tour-highlight" style={{ position: 'fixed', left: 0, top: 0, border: '2px solid rgba(255,184,107,0.95)', borderRadius: 8, boxShadow: '0 8px 30px rgba(255,184,107,0.08)', transform: 'none', transition: 'left 450ms cubic-bezier(.2,.9,.3,1), top 450ms cubic-bezier(.2,.9,.3,1), width 450ms, height 450ms, opacity 300ms', opacity: 0, pointerEvents: 'none', zIndex: 9998 }} aria-hidden="true" />
+
       {showEvac && (
         <div className="overlay">
           <div style={{ position: 'absolute', left: 12, right: 12, bottom: 16, height: 4, background: 'repeating-linear-gradient(90deg,#15a34a 0 18px, transparent 18px 24px)' }}></div>
+          {/* Bottom exits (existing) */}
           <div style={{ position: 'absolute', left: 12, bottom: 6, color: '#9fe3b5', fontSize: 12 }}><svg className="ic"><use href="#ic-exit" /></svg> Salida</div>
           <div style={{ position: 'absolute', right: 12, bottom: 6, color: '#9fe3b5', fontSize: 12 }}>Salida <svg className="ic"><use href="#ic-exit" /></svg></div>
+
+          {/* Additional exits: middle-left and middle-right */}
+          <div style={{ position: 'absolute', left: 12, top: '40%', color: '#9fe3b5', fontSize: 12, transform: 'translateY(-50%)' }}><svg className="ic"><use href="#ic-exit" /></svg> Salida</div>
+          <div style={{ position: 'absolute', right: 12, top: '40%', color: '#9fe3b5', fontSize: 12, transform: 'translateY(-50%)', textAlign: 'right' }}>Salida <svg className="ic"><use href="#ic-exit" /></svg></div>
+
+          {/* Optional top exits near server/entry area */}
+          <div style={{ position: 'absolute', left: 12, top: 18, color: '#9fe3b5', fontSize: 12 }}><svg className="ic"><use href="#ic-exit" /></svg> Salida</div>
+          <div style={{ position: 'absolute', right: 12, top: 18, color: '#9fe3b5', fontSize: 12, textAlign: 'right' }}>Salida <svg className="ic"><use href="#ic-exit" /></svg></div>
         </div>
       )}
 

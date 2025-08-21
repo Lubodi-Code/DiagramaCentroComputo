@@ -102,6 +102,42 @@ export const SPECS = {
     bullets: ['PoE', 'Retención 30 días', 'Alerta por eventos'],
     docs: [],
   },
+  supervision: {
+    title: 'Sala de Supervisión — 2 Estaciones',
+    summary: 'Monitoreo de KPIs, grabaciones y gestión de calidad (QoS/Softphone).',
+    bullets: ['Monitoreo de KPIs', 'Grabaciones y playback', 'QoS para voz / Softphone'],
+    docs: [],
+  },
+  'softphone': {
+    title: 'Softphone',
+    summary: 'Cliente softphone para agentes y supervisores.',
+    bullets: ['SIP', 'QoS', 'Integración con PBX/UC'],
+    docs: [],
+  },
+  'reportes': {
+    title: 'Reportes',
+    summary: 'Paneles y reportes de rendimiento y calidad.',
+    bullets: ['Dashboards KPI', 'Exportes CSV/PDF'],
+    docs: [],
+  },
+  'analitica': {
+    title: 'Analítica',
+    summary: 'Análisis de llamadas y extracción de insights.',
+    bullets: ['Speech analytics', 'Alertas por anomalías'],
+    docs: [],
+  },
+  'grabacion': {
+    title: 'Grabación',
+    summary: 'Sistema de grabación y retención de llamadas.',
+    bullets: ['Retención configurable', 'Búsqueda y reproducción'],
+    docs: [],
+  },
+  'agents-area': {
+    title: 'Área de Agentes — 20 Puestos',
+    summary: 'Zona de trabajo con 20 puestos utilizando VLAN para voz y datos.',
+    bullets: ['20 puestos', 'VLAN Voz/Datos', 'PoE en escritorios'],
+    docs: [],
+  },
 }
 
 export const DEFAULT_TOUR = [
